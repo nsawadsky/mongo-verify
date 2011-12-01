@@ -44,24 +44,24 @@ proctype Node(byte self) {
 	rof(node);
 	
 	do 
-		:: repliedYea == true && GBL_nodeState[self].repliedYeaTimer == 0 ->
-			repliedYea = false;
-		:: electingSelf == true && GBL_nodeState[self].electingSelfTimer == 0 ->
-			electingSelf = false;
-		:: 
-		    select(node: 0 .. NUM_NODES-1);
-			if
-			:: linkState[node] == NODE_DOWN ->
-				linkState[node] = NODE_UP;
-				nodesUp++;
-				checkSeesMaster(linkState, seesMaster);
-			:: linkState[node] == NODE_UP ->
-				linkState[node] = NODE_DOWN;
-				nodesUp--;
-				checkSeesMaster(linkState, seesMaster);
-			fi
-		:: !GBL_nodeState[self].isMaster && !seesMaster && !electingSelf && !repliedYea ->
-			broadcast(linkState, (MSG_ELECT_SELF, self));
+	:: repliedYea == true && GBL_nodeState[self].repliedYeaTimer == 0 ->
+		repliedYea = false;
+	:: electingSelf == true && GBL_nodeState[self].electingSelfTimer == 0 ->
+		electingSelf = false;
+	:: 
+	    select(node: 0 .. NUM_NODES-1);
+		if
+		:: linkState[node] == NODE_DOWN ->
+			linkState[node] = NODE_UP;
+			nodesUp++;
+			checkSeesMaster(linkState, seesMaster);
+		:: linkState[node] == NODE_UP ->
+			linkState[node] = NODE_DOWN;
+			nodesUp--;
+			checkSeesMaster(linkState, seesMaster);
+		fi
+	:: !GBL_nodeState[self].isMaster && !seesMaster && !electingSelf && !repliedYea ->
+		broadcast(linkState, MSG_ELECT_SELF(self));
 		 	
 	od
 		
