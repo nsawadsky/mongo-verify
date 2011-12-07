@@ -216,7 +216,7 @@ proctype Clock() {
 
 // This process is responsible for, at some point, setting the GBL_uniqueEligibleNode to one of the
 // nodes.
-proctype PrioritizeNode() {
+proctype SetUniqueEligibleNode() {
 	byte node;
 	atomic { 
 		select(node: 0 .. NUM_NODES-1);
@@ -268,7 +268,7 @@ init {
 		propagateState();
 	
 		run Clock();
-		run PrioritizeNode();
+		run SetUniqueEligibleNode();
 		
 #ifdef UNRELIABLE_LINKS
 		run LinkBreaker();
