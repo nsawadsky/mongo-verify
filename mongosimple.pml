@@ -9,9 +9,6 @@
 #define MAJORITY 2
 #define INVALID_NODE_ID 255
 
-// If set, simulate timers using a partitioned event queue.
-#define SIMULATED_TIMERS 1
-
 // Number of partitions in the event queue
 #define EVENT_QUEUE_PARTITIONS 3
 // Number of events per partition
@@ -100,20 +97,18 @@ inline propagateState() {
 inline sendYea(sender, receiver) {
 	if 
 	:: GBL_nodeState[sender].linkState[receiver] == NODE_UP ->
-		CURRENT_EVENT_PARTITION ! MSG_YEA(receiver, INVALID_NODE_ID);
+		CURRENT_EVENT_PARTITION ! MSG_YEA(receiver, sender);
 	:: else -> ;
 	fi;
-#ifdef SIMULATED_TIMERS
 	// Insert the timeout event in the partition which is REPLIED_YEA_TIMEOUT_PERIOD partitions in the future.
 	OFFSET_EVENT_PARTITION(REPLIED_YEA_TIMEOUT_PERIOD) ! REPLIED_YEA_TIMEOUT(sender, INVALID_NODE_ID);
-#endif
 }
 
 // Send a NAY vote.
 inline sendNay(sender, receiver) {
 	if 
 	:: GBL_nodeState[sender].linkState[receiver] == NODE_UP ->
-		CURRENT_EVENT_PARTITION ! MSG_NAY(receiver, INVALID_NODE_ID);
+		CURRENT_EVENT_PARTITION ! MSG_NAY(receiver, sender);
 	:: else -> ;
 	fi
 }
@@ -129,10 +124,8 @@ inline broadcastElectSelf(sender) {
 		:: else -> 
 		fi 
 	rof(besNode);
-#ifdef SIMULATED_TIMERS
 	// Insert the timeout event in the partition which is ELECTING_SELF_TIMEOUT_PERIOD partitions in the future.
 	OFFSET_EVENT_PARTITION(ELECTING_SELF_TIMEOUT_PERIOD) ! ELECTING_SELF_TIMEOUT(sender, INVALID_NODE_ID);
-#endif
 }
 
 proctype Node(byte self) {
@@ -148,23 +141,14 @@ proctype Node(byte self) {
     
 	do
 	// Handle the 'replied yea' timeout, indicating this node is now free to vote in another election. 
-#ifdef SIMULATED_TIMERS
 	:: atomic { CURRENT_EVENT_PARTITION ?? REPLIED_YEA_TIMEOUT, eval(self), _ ->
 		assert(repliedYea);
-#else 
-	// Without simulated timers, reset of the repliedYea flag can occur at any time.
-	:: atomic { repliedYea == true ->
-#endif
 		repliedYea = false;
 	}
 	// Handle the 'electing self' timeout, indicating the period in which votes can be received for this node's election
 	// request has elapsed. 
-#ifdef SIMULATED_TIMERS
 	:: atomic { CURRENT_EVENT_PARTITION ?? ELECTING_SELF_TIMEOUT, eval(self), _ ->
 		assert(electingSelf);
-#else 
-	:: atomic { electingSelf == true ->
-#endif
 		if
 		// If node received a yea vote from majority of nodes, declare it master. 
 		:: votes >= MAJORITY ->
@@ -206,7 +190,7 @@ proctype Node(byte self) {
 	od
 }
 
-// If SIMULATED_TIMERS is set, this process is responsible for incrementing the GBL_currentPartitionIndex.
+// This process is responsible for incrementing the GBL_currentPartitionIndex.
 proctype Clock() {
 	do 
 	// If the current partition is empty, we can increment the partition index.  
@@ -259,9 +243,7 @@ init {
 		rof(node1);
 		propagateState();
 	
-#ifdef SIMULATED_TIMERS
 		run Clock();
-#endif
 		
 #ifdef UNRELIABLE_LINKS
 		run LinkBreaker();
