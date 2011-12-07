@@ -46,6 +46,13 @@ typedef NodeState {
 	byte nodesUp = 0;
 };
 
+// Used for LTL verification.
+bool GBL_masterExists = false;
+
+// At any point, we can ensure that going forward, only a single node is eligible to become master.
+// In LTL verification, we will check that whenever this becomes true, we eventually will have a master.
+byte GBL_uniqueEligibleNode = INVALID_NODE_ID;
+
 // Globally-visible node state for each node.
 NodeState GBL_nodeState[NUM_NODES];
 
@@ -73,7 +80,14 @@ inline propagateState() {
 	byte psNode1;
 	byte psNode2;
 	for (psNode1, 0, NUM_NODES-1)
+		if 
+		:: GBL_nodeState[psNode1].isMaster ->
+			GBL_masterExists = true;
+		:: else -> ;
+		fi;
+
 		GBL_nodeState[psNode1].seesMaster = GBL_nodeState[psNode1].isMaster;
+		
 		GBL_nodeState[psNode1].nodesUp = 0;
 		for (psNode2, 0, NUM_NODES-1)
 			// Assert that we only ever have a single master.  Note that this assertion is only valid when (a) SIMULATED_TIMEOUTS
@@ -161,7 +175,7 @@ proctype Node(byte self) {
 	}
 	// If all conditions are met, broadcast election request for this node.
 	:: atomic { !GBL_nodeState[self].isMaster && !GBL_nodeState[self].seesMaster && !electingSelf && !repliedYea && 
-			GBL_nodeState[self].nodesUp >= MAJORITY ->
+			GBL_nodeState[self].nodesUp >= MAJORITY && (GBL_uniqueEligibleNode == INVALID_NODE_ID || GBL_uniqueEligibleNode == self) ->
 		electingSelf = true;
 		// Node always votes for itself.
 		votes = 1;
@@ -198,6 +212,16 @@ proctype Clock() {
 		GBL_currentPartitionIndex = (GBL_currentPartitionIndex + 1) % EVENT_QUEUE_PARTITIONS;
 	}
 	od
+}
+
+// This process is responsible for, at some point, setting the GBL_uniqueEligibleNode to one of the
+// nodes.
+proctype PrioritizeNode() {
+	byte node;
+	atomic { 
+		select(node: 0 .. NUM_NODES-1);
+		GBL_uniqueEligibleNode = node;
+	}
 }
 
 // If UNRELIABLE_LINKS is set, this process is responsible for breaking and restoring links between nodes.
@@ -244,6 +268,7 @@ init {
 		propagateState();
 	
 		run Clock();
+		run PrioritizeNode();
 		
 #ifdef UNRELIABLE_LINKS
 		run LinkBreaker();
