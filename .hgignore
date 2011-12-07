@@ -1,0 +1,11 @@
+
+syntax: regexp
+\.b$
+syntax: regexp
+\.c$
+syntax: regexp
+^pan\.h$
+syntax: regexp
+\.m$
+syntax: regexp
+\.t$
