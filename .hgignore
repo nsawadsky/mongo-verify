@@ -9,3 +9,9 @@ syntax: regexp
 \.m$
 syntax: regexp
 \.t$
+syntax: regexp
+\.trail$
+syntax: regexp
+\.exe$
+syntax: regexp
+\.nvr$
