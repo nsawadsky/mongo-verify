@@ -4,6 +4,8 @@
 // for.h defines a macro which emulates a for loop.
 #include "for.h"
 
+#define UNRELIABLE_LINKS 1 
+
 // Constants
 #define NUM_NODES 3
 #define MAJORITY 2
@@ -43,7 +45,7 @@ typedef NodeState {
 	bool seesMaster = false;
 	
 	// How many other nodes does this node currently have links to?
-	byte nodesUp = 0;
+	byte nodesUp = 1;
 };
 
 // Used for LTL verification.
@@ -88,7 +90,7 @@ inline propagateState() {
 
 		GBL_nodeState[psNode1].seesMaster = GBL_nodeState[psNode1].isMaster;
 		
-		GBL_nodeState[psNode1].nodesUp = 0;
+		GBL_nodeState[psNode1].nodesUp = 1;
 		for (psNode2, 0, NUM_NODES-1)
 			// Assert that we only ever have a single master.  Note that this assertion is only valid when (a) SIMULATED_TIMEOUTS
 			// is turned on; and (b) UNRELIABLE_LINKS is turned off.
@@ -190,7 +192,8 @@ proctype Node(byte self) {
 			sendYea(self, node);
 		:: else ->
 			sendNay(self, node); 
-		fi
+		fi;
+		node = 0;
 	} 
 	// Handle yea vote from another node.
     :: atomic { CURRENT_EVENT_PARTITION ?? MSG_YEA, eval(self), _ ->
@@ -217,10 +220,8 @@ proctype Clock() {
 // This process is responsible for, at some point, setting the GBL_uniqueEligibleNode to one of the
 // nodes.
 proctype SetUniqueEligibleNode() {
-	byte node;
 	atomic { 
-		select(node: 0 .. NUM_NODES-1);
-		GBL_uniqueEligibleNode = node;
+		GBL_uniqueEligibleNode = 0;
 	}
 }
 
@@ -231,11 +232,9 @@ proctype LinkBreaker() {
 	do
 	:: atomic {
 		// Choose a link to break/repair.
-		select(node1: 0 .. NUM_NODES-1);
-		select(node2: 0 .. NUM_NODES-1);
+		select(node1: 0 .. NUM_NODES-2);
+		select(node2: node1+1 .. NUM_NODES-1);
 		if 
-		:: GBL_nodeState[node1].linkState[node2] == SELF -> ;
-
 		:: GBL_nodeState[node1].linkState[node2] == NODE_DOWN ->
 			GBL_nodeState[node1].linkState[node2] = NODE_UP;
 			GBL_nodeState[node2].linkState[node1] = NODE_UP;
@@ -245,6 +244,8 @@ proctype LinkBreaker() {
 			GBL_nodeState[node2].linkState[node1] = NODE_DOWN;
 		fi;
 		propagateState();
+		node1 = 0;
+		node2 = 0;
 	}
 	od
 }
