@@ -4,10 +4,11 @@
 // for.h defines a macro which emulates a for loop.
 #include "for.h"
 
-// Macro to enable unreliable links.
-//#define UNRELIABLE_LINKS 1 
-
 // Constants
+
+// Macro to enable unreliable links
+#define UNRELIABLE_LINKS 1
+
 #define NUM_NODES 3
 #define MAJORITY 2
 #define INVALID_TIMER_VALUE 255
@@ -54,12 +55,25 @@ typedef NodeState {
 	byte electingSelfTimer = INVALID_TIMER_VALUE;
 };
 
+// Is it possible for links to change state?
+#ifdef UNRELIABLE_LINKS 
+bool GBL_unreliableLinks = true;
+#else
+bool GBL_unreliableLinks = false;
+#endif
+
 // Used for LTL verification.
 bool GBL_masterExists = false;
 
+// Used for LTL verification.
+bool GBL_moreThanOneMaster = false;
+
+// Used for LTL verification.
+bool GBL_node0SeesMajority = false;
+
 // At any point, we can ensure that going forward, only a single node is eligible to become master.
 // In LTL verification, we will check that whenever this becomes true, we eventually will have a master.
-byte GBL_uniqueEligibleNode = INVALID_NODE_ID;
+bool GBL_onlyNode0Eligible = false;
 
 // Globally-visible node state for each node.
 NodeState GBL_nodeState[NUM_NODES];
@@ -72,10 +86,17 @@ inline propagateState() {
 	byte psNode1;
 	byte psNode2;
 	GBL_masterExists = false;
+	GBL_node0SeesMajority = false;
+	GBL_moreThanOneMaster = false;
 	for (psNode1, 0, NUM_NODES-1)
 		if 
 		:: GBL_nodeState[psNode1].isMaster ->
-			GBL_masterExists = true;
+			if 
+			:: GBL_masterExists ->
+				GBL_moreThanOneMaster = true;
+			:: else ->
+				GBL_masterExists = true;
+			fi
 		:: else -> ;
 		fi;
 
@@ -97,8 +118,13 @@ inline propagateState() {
 				fi
 			:: else -> ;
 			fi
-		rof(psNode2)
+		rof(psNode2);
 	rof(psNode1);
+	if 
+	:: GBL_nodeState[0].nodesUp >= MAJORITY ->
+		GBL_node0SeesMajority = true;
+	:: else -> ;
+	fi
 }
 
 // Send a YEA vote.
@@ -160,7 +186,7 @@ proctype Node(byte self) {
 	// If all conditions are met, broadcast election request for this node.
 	:: atomic { !GBL_nodeState[self].isMaster && !GBL_nodeState[self].seesMaster && 
 			GBL_nodeState[self].electingSelfTimer == INVALID_TIMER_VALUE && GBL_nodeState[self].repliedYeaTimer == INVALID_TIMER_VALUE &&  
-			GBL_nodeState[self].nodesUp >= MAJORITY && (GBL_uniqueEligibleNode == INVALID_NODE_ID || GBL_uniqueEligibleNode == self) ->
+			GBL_nodeState[self].nodesUp >= MAJORITY && (!GBL_onlyNode0Eligible || self == 0) ->
 		GBL_nodeState[self].electingSelfTimer = ELECTING_SELF_TIMEOUT;
 		// Node always votes for itself.
 		votes = 1;
@@ -188,6 +214,11 @@ proctype Node(byte self) {
     :: atomic { GBL_nodeState[self].msgBuffer ? MSG_NAY, _ ->
     	assert(GBL_nodeState[self].electingSelfTimer != INVALID_TIMER_VALUE);
     } 
+    // Handle case where master can no longer see majority of the nodes.
+    :: atomic { GBL_nodeState[self].isMaster && GBL_nodeState[self].nodesUp < MAJORITY ->
+    	GBL_nodeState[self].isMaster = false;
+    	propagateState();
+    }
 	od
 }
 
@@ -243,11 +274,17 @@ proctype Clock() {
 	od
 }
 
-// This process is responsible for, at some point, setting the GBL_uniqueEligibleNode to one of the
-// nodes.
+// This process is responsible for, at some point, setting GBL_onlyNode0Eligible to true.
 proctype SetUniqueEligibleNode() {
 	atomic { 
-		GBL_uniqueEligibleNode = 0;
+		GBL_onlyNode0Eligible = true;
+	}
+}
+
+// If UNRELIABLE_LINKS is set, this process is reponsible for, at some point, setting GBL_unreliableLinks to false.
+proctype DisableUnreliableLinks() {
+	atomic {
+		GBL_unreliableLinks = false;
 	}
 }
 
@@ -256,7 +293,7 @@ proctype LinkBreaker() {
 	byte node1;
 	byte node2;
 	do
-	:: atomic {
+	:: atomic { GBL_unreliableLinks ->
 		// Choose a link to break/repair.
 		select(node1: 0 .. NUM_NODES-2);
 		select(node2: node1+1 .. NUM_NODES-1);
@@ -273,6 +310,7 @@ proctype LinkBreaker() {
 		node1 = 0;
 		node2 = 0;
 	}
+	:: else -> ;
 	od
 }
 
@@ -299,6 +337,7 @@ init {
 		
 #ifdef UNRELIABLE_LINKS
 		run LinkBreaker();
+		run DisableUnreliableLinks();
 #endif
 
 		// Start the nodes.
