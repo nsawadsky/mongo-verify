@@ -160,6 +160,7 @@ inline broadcastElectSelf(sender) {
 proctype Node(byte self) {
 	// Number of votes this node has received in current election.
     byte votes = 0;
+    byte repliedYeaTo = INVALID_NODE_ID;
     
     // Temporaries
     byte node;
@@ -168,6 +169,7 @@ proctype Node(byte self) {
 	// Handle the 'replied yea' timeout, indicating this node is now free to vote in another election. 
 	:: atomic { GBL_nodeState[self].repliedYeaTimer == 0 ->
 		GBL_nodeState[self].repliedYeaTimer = INVALID_TIMER_VALUE;
+		repliedYeaTo = INVALID_NODE_ID;
 	}
 	// Handle the 'electing self' timeout, indicating the period in which votes can be received for this node's election
 	// request has elapsed. 
@@ -197,11 +199,14 @@ proctype Node(byte self) {
 		if
 		// Condition for sending a yea vote:
 		:: !GBL_nodeState[self].isMaster && !GBL_nodeState[self].seesMaster && 
-				GBL_nodeState[self].electingSelfTimer == INVALID_TIMER_VALUE && GBL_nodeState[self].repliedYeaTimer == INVALID_TIMER_VALUE ->  
+				GBL_nodeState[self].electingSelfTimer == INVALID_TIMER_VALUE && 
+				(GBL_nodeState[self].repliedYeaTimer == INVALID_TIMER_VALUE || repliedYeaTo == node) ->
 			GBL_nodeState[self].repliedYeaTimer = REPLIED_YEA_TIMEOUT;
+			repliedYeaTo = node;
 			sendYea(self, node);
 		:: else ->
-			sendNay(self, node); 
+			// Commented out to reduce state space (the receiver does nothing with this message).
+			//sendNay(self, node); 
 		fi;
 		node = 0;
 	} 
