@@ -315,7 +315,6 @@ proctype LinkBreaker() {
 		node1 = 0;
 		node2 = 0;
 	}
-	:: else -> ;
 	od
 }
 
