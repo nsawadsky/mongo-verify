@@ -15,7 +15,7 @@
 #define INVALID_NODE_ID 255
 
 // Size of each node's input message buffer
-#define MSG_BUFFER_SIZE 4
+#define MSG_BUFFER_SIZE 2
 
 // Timeout for replied yea.  Cannot vote yea for another master candidate
 // until this timeout expires.
