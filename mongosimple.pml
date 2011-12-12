@@ -191,6 +191,10 @@ proctype Node(byte self) {
 			GBL_nodeState[self].nodesUp >= MAJORITY && (!GBL_onlyNode0Eligible || self == 0) ->
 		// Node always votes for itself.
 		votes = 1;
+		
+		// For added realism, we should release the atomic lock before broadcasting the request, so that
+		// this master election broadcast can be interleaved with others (tried it and the state space
+		// increases substantially, although still verifiable in 1-2 minutes).
 		broadcastElectSelf(self);
 		GBL_nodeState[self].electingSelfTimer = ELECTING_SELF_TIMEOUT;
 	}
