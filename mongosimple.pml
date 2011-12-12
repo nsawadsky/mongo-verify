@@ -189,10 +189,10 @@ proctype Node(byte self) {
 	:: atomic { !GBL_nodeState[self].isMaster && !GBL_nodeState[self].seesMaster && 
 			GBL_nodeState[self].electingSelfTimer == INVALID_TIMER_VALUE && GBL_nodeState[self].repliedYeaTimer == INVALID_TIMER_VALUE &&  
 			GBL_nodeState[self].nodesUp >= MAJORITY && (!GBL_onlyNode0Eligible || self == 0) ->
-		GBL_nodeState[self].electingSelfTimer = ELECTING_SELF_TIMEOUT;
 		// Node always votes for itself.
 		votes = 1;
 		broadcastElectSelf(self);
+		GBL_nodeState[self].electingSelfTimer = ELECTING_SELF_TIMEOUT;
 	}
 	// Handle election request from another node.
     :: atomic { GBL_nodeState[self].msgBuffer ? MSG_ELECT_SELF, node -> 
@@ -201,9 +201,9 @@ proctype Node(byte self) {
 		:: !GBL_nodeState[self].isMaster && !GBL_nodeState[self].seesMaster && 
 				GBL_nodeState[self].electingSelfTimer == INVALID_TIMER_VALUE && 
 				(GBL_nodeState[self].repliedYeaTimer == INVALID_TIMER_VALUE || repliedYeaTo == node) ->
-			GBL_nodeState[self].repliedYeaTimer = REPLIED_YEA_TIMEOUT;
 			repliedYeaTo = node;
 			sendYea(self, node);
+			GBL_nodeState[self].repliedYeaTimer = REPLIED_YEA_TIMEOUT;
 		:: else ->
 			// Commented out to reduce state space (the receiver does nothing with this message).
 			//sendNay(self, node); 
