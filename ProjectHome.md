@@ -1,0 +1,1 @@
+Course project to verify Mongo's master election protocol using Spin model checker.
